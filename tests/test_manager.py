@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+
 import pytest
 
 from company_db.cli import format_report_text, main

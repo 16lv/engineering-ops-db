@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from typing import Sequence
+from collections.abc import Sequence
 
 from company_db.manager import CompanyDatabaseManager, seed_sample_company
 
