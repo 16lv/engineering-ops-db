@@ -1,5 +1,3 @@
-"""Relational database management operations for a technology company."""
-
 from __future__ import annotations
 
 import sqlite3
@@ -12,8 +10,6 @@ SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 
 @dataclass(frozen=True)
 class DepartmentBudgetReport:
-    """Aggregated headcount, payroll, and cloud spend per department."""
-
     code: str
     name: str
     active_headcount: int
@@ -25,8 +21,6 @@ class DepartmentBudgetReport:
 
 @dataclass(frozen=True)
 class ServiceReliabilityReport:
-    """Incident counts and recovery metrics for a managed cloud service."""
-
     service_code: str
     service_name: str
     department_code: str
@@ -38,16 +32,16 @@ class ServiceReliabilityReport:
 
 
 class CompanyDatabaseManager:
-    """Manages departments, engineers, cloud services, and incidents in SQLite."""
+    # Wrapper around sqlite3 for managing departments, staff, cloud services, and incidents.
 
     def __init__(self, db_path: str | Path = ":memory:") -> None:
         self.db_path = str(db_path)
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row
+        # SQLite leaves foreign keys disabled on new connections unless turned on explicitly
         self.conn.execute("PRAGMA foreign_keys = ON;")
 
     def close(self) -> None:
-        """Close the underlying SQLite connection."""
         self.conn.close()
 
     def __enter__(self) -> Self:
@@ -57,7 +51,6 @@ class CompanyDatabaseManager:
         self.close()
 
     def init_schema(self) -> None:
-        """Create tables and indexes defined in schema.sql."""
         ddl = SCHEMA_PATH.read_text(encoding="utf-8")
         with self.conn:
             self.conn.executescript(ddl)
@@ -66,6 +59,7 @@ class CompanyDatabaseManager:
     def _record_audit(
         self, action: str, entity_type: str, entity_ref: str, detail: str
     ) -> None:
+        # Keep an audit trail in the same transaction as the main change
         self.conn.execute(
             """
             INSERT INTO audit_log (action, entity_type, entity_ref, detail)
@@ -75,7 +69,6 @@ class CompanyDatabaseManager:
         )
 
     def create_department(self, code: str, name: str, annual_budget_gbp: int) -> int:
-        """Insert a department and record an audit log entry."""
         clean_code = code.strip().upper()
         with self.conn:
             cursor = self.conn.execute(
@@ -103,7 +96,6 @@ class CompanyDatabaseManager:
         salary_gbp: int,
         hired_date: str = "2026-01-15",
     ) -> int:
-        """Add an employee to a department within a transaction."""
         clean_code = emp_code.strip().upper()
         with self.conn:
             cursor = self.conn.execute(
@@ -139,7 +131,7 @@ class CompanyDatabaseManager:
         new_role_title: str | None = None,
         new_salary_gbp: int | None = None,
     ) -> None:
-        """Atomically transfer an employee to a new department and log the change."""
+        # Move an employee to another department and optionally update their role/salary
         clean_code = emp_code.strip().upper()
         with self.conn:
             row = self.conn.execute(
@@ -177,7 +169,6 @@ class CompanyDatabaseManager:
         monthly_cost_gbp: float,
         status: str = "operational",
     ) -> int:
-        """Register an internal or production cloud service."""
         clean_code = service_code.strip().lower()
         with self.conn:
             cursor = self.conn.execute(
@@ -216,7 +207,6 @@ class CompanyDatabaseManager:
         duration_minutes: int = 0,
         logged_at: str = "2026-10-12T14:20:00Z",
     ) -> int:
-        """Log a service incident and update the audit trail."""
         with self.conn:
             cursor = self.conn.execute(
                 """
@@ -246,7 +236,9 @@ class CompanyDatabaseManager:
             return incident_id
 
     def get_department_budget_summary(self) -> list[DepartmentBudgetReport]:
-        """Compute active headcount, payroll, annualized cloud cost, and remaining budget."""
+        # Aggregate payroll and cloud spend in separate CTEs first.
+        # Joining employees and cloud_services directly would duplicate salary rows
+        # whenever a department runs more than one service.
         query = """
             WITH emp_totals AS (
                 SELECT
@@ -297,7 +289,8 @@ class CompanyDatabaseManager:
         ]
 
     def get_service_reliability_summary(self) -> list[ServiceReliabilityReport]:
-        """Join services, departments, owners, and incidents to report service reliability."""
+        # Only average duration_minutes across resolved incidents so open ones (0 mins)
+        # don't artificially lower the recovery time.
         query = """
             SELECT
                 cs.service_code,
@@ -339,7 +332,6 @@ class CompanyDatabaseManager:
         role_keyword: str | None = None,
         only_active: bool = True,
     ) -> list[dict[str, Any]]:
-        """Run a parameterized search across employees and their assigned department."""
         clauses: list[str] = []
         params: list[Any] = []
 
@@ -370,7 +362,6 @@ class CompanyDatabaseManager:
         return [dict(row) for row in self.conn.execute(query, params).fetchall()]
 
     def get_recent_audit_logs(self, limit: int = 10) -> list[dict[str, Any]]:
-        """Return the most recent audit log entries."""
         rows = self.conn.execute(
             """
             SELECT id, action, entity_type, entity_ref, detail, recorded_at
@@ -383,7 +374,6 @@ class CompanyDatabaseManager:
         return [dict(row) for row in rows]
 
     def export_snapshot(self) -> dict[str, Any]:
-        """Export a structured dictionary snapshot of budget and reliability reports."""
         return {
             "departments": [asdict(r) for r in self.get_department_budget_summary()],
             "services": [asdict(r) for r in self.get_service_reliability_summary()],
@@ -392,7 +382,7 @@ class CompanyDatabaseManager:
 
 
 def seed_sample_company(db: CompanyDatabaseManager) -> None:
-    """Populate the database with realistic sample data for a technology company."""
+    # Sample dataset used by the CLI and tests
     db.init_schema()
 
     plat_id = db.create_department("PLAT", "Platform Engineering", 420_000)
