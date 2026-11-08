@@ -1,6 +1,6 @@
-# Company Database Manager (`company-db-manager`)
+﻿# OpsLedger
 
-[![Python CI](https://github.com/16lv/company-db-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/16lv/company-db-manager/actions/workflows/ci.yml)
+[![Python CI](https://github.com/16lv/opsledger/actions/workflows/ci.yml/badge.svg)](https://github.com/16lv/opsledger/actions/workflows/ci.yml)
 
 A relational database management tool written in **Python 3.12** and **SQLite 3** (`sqlite3`) for managing a technology company's engineering departments, employees, cloud services, and operational incidents.
 
@@ -10,11 +10,11 @@ Built to demonstrate practical relational schema design (3NF), foreign-key and `
 
 ## Relational Schema (`src/company_db/schema.sql`)
 
-- **`departments`** — Department code, name, and annual budget (`CHECK (annual_budget_gbp >= 0)`).
-- **`employees`** — Engineering staff linked via `FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT`, with email validation and salary constraints.
-- **`cloud_services`** — Production and internal services owned by a department and lead engineer, tracking monthly infrastructure cost and operational status (`operational`, `degraded`, `maintenance`).
-- **`incidents`** — Service incident records (`SEV-1`, `SEV-2`, `SEV-3`), resolution status, and recovery duration in minutes.
-- **`audit_log`** — Append-only operational ledger recording every department creation, hire, transfer, service registration, and incident report.
+- **`departments`** â€” Department code, name, and annual budget (`CHECK (annual_budget_gbp >= 0)`).
+- **`employees`** â€” Engineering staff linked via `FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT`, with email validation and salary constraints.
+- **`cloud_services`** â€” Production and internal services owned by a department and lead engineer, tracking monthly infrastructure cost and operational status (`operational`, `degraded`, `maintenance`).
+- **`incidents`** â€” Service incident records (`SEV-1`, `SEV-2`, `SEV-3`), resolution status, and recovery duration in minutes.
+- **`audit_log`** â€” Append-only operational ledger recording every department creation, hire, transfer, service registration, and incident report.
 
 ---
 
@@ -52,3 +52,4 @@ k8s-control-plane    PLAT   degraded              2      1    34.0 m
 auth-gateway         SEC    operational           1      0     8.0 m
 telemetry-ingest     DATA   operational           1      0    19.0 m
 ```
+
