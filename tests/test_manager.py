@@ -1,4 +1,4 @@
-"""Automated test suite for CompanyDatabaseManager."""
+"""Automated test suite for CompanyDatabaseManager (OpsLedger)."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def test_department_budget_and_cloud_spend_aggregation() -> None:
         assert data.remaining_budget_gbp == 199_800.0
 
 
-def test_service_reliability_and_mttr_aggregation() -> None:
+def test_service_reliability_and_incident_resolution() -> None:
     with CompanyDatabaseManager(":memory:") as db:
         seed_sample_company(db)
         services = {s.service_code: s for s in db.get_service_reliability_summary()}
@@ -41,10 +41,18 @@ def test_service_reliability_and_mttr_aggregation() -> None:
         assert kube.open_incidents == 1
         assert kube.avg_resolution_minutes == 34.0
 
-        ingest = services["telemetry-ingest"]
-        assert ingest.total_incidents == 1
-        assert ingest.open_incidents == 0
-        assert ingest.avg_resolution_minutes == 19.0
+        # Resolve the open CoreDNS incident (id=2) with a 26-minute recovery time
+        db.resolve_incident(incident_id=2, duration_minutes=26)
+
+        updated_kube = {
+            s.service_code: s for s in db.get_service_reliability_summary()
+        }["k8s-control-plane"]
+        assert updated_kube.open_incidents == 0
+        # Average of 34m and 26m is 30.0m
+        assert updated_kube.avg_resolution_minutes == 30.0
+
+        with pytest.raises(ValueError, match="already resolved"):
+            db.resolve_incident(incident_id=2, duration_minutes=10)
 
 
 def test_employee_transfer_updates_department_and_audit_log() -> None:

@@ -235,6 +235,35 @@ class CompanyDatabaseManager:
             )
             return incident_id
 
+    def resolve_incident(self, incident_id: int, duration_minutes: int) -> None:
+        # Mark an open incident as resolved and record its recovery time in the audit trail
+        if duration_minutes < 0:
+            raise ValueError("duration_minutes cannot be negative.")
+        with self.conn:
+            row = self.conn.execute(
+                "SELECT id, service_id, resolved FROM incidents WHERE id = ?",
+                (incident_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"Incident ID {incident_id} not found.")
+            if int(row["resolved"]) == 1:
+                raise ValueError(f"Incident ID {incident_id} is already resolved.")
+
+            self.conn.execute(
+                """
+                UPDATE incidents
+                SET resolved = 1, duration_minutes = ?
+                WHERE id = ?
+                """,
+                (duration_minutes, incident_id),
+            )
+            self._record_audit(
+                "RESOLVE_INCIDENT",
+                "incident",
+                f"INC-{incident_id:04d}",
+                f"Resolved incident on service_id={row['service_id']} in {duration_minutes}m",
+            )
+
     def get_department_budget_summary(self) -> list[DepartmentBudgetReport]:
         # Aggregate payroll and cloud spend in separate CTEs first.
         # Joining employees and cloud_services directly would duplicate salary rows
