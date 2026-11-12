@@ -1,12 +1,12 @@
-# OpsLedger
+# Engineering Ops DB (engineering-ops-db)
 
-[![Python CI](https://github.com/16lv/opsledger/actions/workflows/ci.yml/badge.svg)](https://github.com/16lv/opsledger/actions/workflows/ci.yml)
+[![Python CI](https://github.com/16lv/engineering-ops-db/actions/workflows/ci.yml/badge.svg)](https://github.com/16lv/engineering-ops-db/actions/workflows/ci.yml)
 
-**OpsLedger** is a relational database management tool written in **Python 3.12** and **SQLite 3** (`sqlite3`) for tracking a technology company's engineering departments, staff, cloud infrastructure services, and operational incidents.
+**Engineering Ops DB** ($(System.Collections.Hashtable.newRepo)) is a relational database management tool written in **Python 3.12** and **SQLite 3** (`sqlite3`) for tracking a technology company's engineering departments, staff, cloud infrastructure services, and operational incidents.
 
 ## Why I Built It
 
-In university database coursework, it is easy to write isolated `SELECT` statements without thinking about how application code manages transactions, enforces referential integrity, or avoids subtle aggregation bugs when joining multiple one-to-many tables. I built OpsLedger to practise designing a normalised 3NF schema with strict database-level constraints (`FOREIGN KEY`, `CHECK`, `UNIQUE`) and pairing every state change with an atomic audit trail.
+In university database coursework, it is easy to write isolated `SELECT` statements without thinking about how application code manages transactions, enforces referential integrity, or avoids subtle aggregation bugs when joining multiple one-to-many tables. I built Engineering Ops DB to practise designing a normalised 3NF schema with strict database-level constraints (`FOREIGN KEY`, `CHECK`, `UNIQUE`) and pairing every state change with an atomic audit trail.
 
 ## Relational Schema (`src/company_db/schema.sql`)
 
