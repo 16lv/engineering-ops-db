@@ -1,4 +1,4 @@
-"""Automated test suite for CompanyDatabaseManager (OpsLedger)."""
+"""Automated test suite for CompanyDatabaseManager."""
 
 from __future__ import annotations
 
@@ -120,3 +120,31 @@ def test_cli_text_and_json_modes(capsys: pytest.CaptureFixture[str]) -> None:
     payload = json.loads(captured)
     assert len(payload["departments"]) == 3
     assert len(payload["services"]) == 3
+
+
+def test_export_snapshot_counts_more_than_100_audit_entries_and_rejects_blank_inputs(
+    tmp_path: pytest.TempPathFactory,
+) -> None:
+    db_file = tmp_path / "persistent.db"
+    assert main(["--db", str(db_file), "--json"]) == 0
+    # Running CLI a second time against an existing database should not duplicate or fail
+    assert main(["--db", str(db_file), "--json"]) == 0
+
+    with CompanyDatabaseManager(":memory:") as db:
+        db.init_schema()
+        with pytest.raises(ValueError, match="Department code"):
+            db.create_department("   ", "Platform", 100_000)
+
+        dept_id = db.create_department("OPS", "Operations", 300_000)
+        for idx in range(115):
+            db.hire_employee(
+                f"EMP-{idx:03d}",
+                f"Engineer {idx}",
+                f"eng{idx}@example.co.uk",
+                "Developer",
+                dept_id,
+                50_000,
+            )
+
+        snapshot = db.export_snapshot()
+        assert snapshot["audit_count"] == 116

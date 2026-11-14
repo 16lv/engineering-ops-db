@@ -56,10 +56,16 @@ class CompanyDatabaseManager:
             self.conn.executescript(ddl)
             self.conn.execute("PRAGMA foreign_keys = ON;")
 
+    @staticmethod
+    def _require_non_blank(value: str, field_name: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError(f"{field_name} must not be blank.")
+        return cleaned
+
     def _record_audit(
         self, action: str, entity_type: str, entity_ref: str, detail: str
     ) -> None:
-        # Keep an audit trail in the same transaction as the main change
         self.conn.execute(
             """
             INSERT INTO audit_log (action, entity_type, entity_ref, detail)
@@ -69,20 +75,21 @@ class CompanyDatabaseManager:
         )
 
     def create_department(self, code: str, name: str, annual_budget_gbp: int) -> int:
-        clean_code = code.strip().upper()
+        clean_code = self._require_non_blank(code, "Department code").upper()
+        clean_name = self._require_non_blank(name, "Department name")
         with self.conn:
             cursor = self.conn.execute(
                 """
                 INSERT INTO departments (code, name, annual_budget_gbp)
                 VALUES (?, ?, ?)
                 """,
-                (clean_code, name.strip(), annual_budget_gbp),
+                (clean_code, clean_name, annual_budget_gbp),
             )
             self._record_audit(
                 "CREATE_DEPT",
                 "department",
                 clean_code,
-                f"Created department '{name}' with budget GBP {annual_budget_gbp:,}",
+                f"Created department '{clean_name}' with budget GBP {annual_budget_gbp:,}",
             )
             return int(cursor.lastrowid or 0)
 
@@ -96,7 +103,10 @@ class CompanyDatabaseManager:
         salary_gbp: int,
         hired_date: str = "2026-01-15",
     ) -> int:
-        clean_code = emp_code.strip().upper()
+        clean_code = self._require_non_blank(emp_code, "Employee code").upper()
+        clean_name = self._require_non_blank(full_name, "Full name")
+        clean_email = self._require_non_blank(email, "Email").lower()
+        clean_role = self._require_non_blank(role_title, "Role title")
         with self.conn:
             cursor = self.conn.execute(
                 """
@@ -108,9 +118,9 @@ class CompanyDatabaseManager:
                 """,
                 (
                     clean_code,
-                    full_name.strip(),
-                    email.strip().lower(),
-                    role_title.strip(),
+                    clean_name,
+                    clean_email,
+                    clean_role,
                     department_id,
                     salary_gbp,
                     hired_date,
@@ -120,7 +130,7 @@ class CompanyDatabaseManager:
                 "HIRE_EMPLOYEE",
                 "employee",
                 clean_code,
-                f"Hired {full_name} ({role_title}) into department_id={department_id}",
+                f"Hired {clean_name} ({clean_role}) into department_id={department_id}",
             )
             return int(cursor.lastrowid or 0)
 
@@ -169,7 +179,8 @@ class CompanyDatabaseManager:
         monthly_cost_gbp: float,
         status: str = "operational",
     ) -> int:
-        clean_code = service_code.strip().lower()
+        clean_code = self._require_non_blank(service_code, "Service code").lower()
+        clean_name = self._require_non_blank(service_name, "Service name")
         with self.conn:
             cursor = self.conn.execute(
                 """
@@ -181,7 +192,7 @@ class CompanyDatabaseManager:
                 """,
                 (
                     clean_code,
-                    service_name.strip(),
+                    clean_name,
                     department_id,
                     owner_employee_id,
                     environment,
@@ -193,7 +204,7 @@ class CompanyDatabaseManager:
                 "REGISTER_SERVICE",
                 "cloud_service",
                 clean_code,
-                f"Registered {service_name} ({environment}) at GBP {monthly_cost_gbp:.2f}/mo",
+                f"Registered {clean_name} ({environment}) at GBP {monthly_cost_gbp:.2f}/mo",
             )
             return int(cursor.lastrowid or 0)
 
@@ -207,6 +218,8 @@ class CompanyDatabaseManager:
         duration_minutes: int = 0,
         logged_at: str = "2026-10-12T14:20:00Z",
     ) -> int:
+        clean_summary = self._require_non_blank(summary, "Incident summary")
+        clean_logged_at = self._require_non_blank(logged_at, "Timestamp")
         with self.conn:
             cursor = self.conn.execute(
                 """
@@ -220,10 +233,10 @@ class CompanyDatabaseManager:
                     service_id,
                     reported_by_id,
                     severity,
-                    summary.strip(),
+                    clean_summary,
                     1 if resolved else 0,
                     duration_minutes,
-                    logged_at,
+                    clean_logged_at,
                 ),
             )
             incident_id = int(cursor.lastrowid or 0)
@@ -231,7 +244,7 @@ class CompanyDatabaseManager:
                 "LOG_INCIDENT",
                 "incident",
                 f"INC-{incident_id:04d}",
-                f"{severity} on service_id={service_id}: {summary.strip()}",
+                f"{severity} on service_id={service_id}: {clean_summary}",
             )
             return incident_id
 
@@ -391,6 +404,8 @@ class CompanyDatabaseManager:
         return [dict(row) for row in self.conn.execute(query, params).fetchall()]
 
     def get_recent_audit_logs(self, limit: int = 10) -> list[dict[str, Any]]:
+        if limit <= 0:
+            raise ValueError("limit must be a positive integer.")
         rows = self.conn.execute(
             """
             SELECT id, action, entity_type, entity_ref, detail, recorded_at
@@ -403,10 +418,11 @@ class CompanyDatabaseManager:
         return [dict(row) for row in rows]
 
     def export_snapshot(self) -> dict[str, Any]:
+        audit_row = self.conn.execute("SELECT COUNT(*) AS cnt FROM audit_log").fetchone()
         return {
             "departments": [asdict(r) for r in self.get_department_budget_summary()],
             "services": [asdict(r) for r in self.get_service_reliability_summary()],
-            "audit_count": len(self.get_recent_audit_logs(limit=100)),
+            "audit_count": int(audit_row["cnt"]) if audit_row else 0,
         }
 
 

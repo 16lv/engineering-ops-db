@@ -60,7 +60,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     with CompanyDatabaseManager(args.db) as db:
-        seed_sample_company(db)
+        db.init_schema()
+        dept_count_row = db.conn.execute("SELECT COUNT(*) AS cnt FROM departments").fetchone()
+        if dept_count_row is None or int(dept_count_row["cnt"]) == 0:
+            seed_sample_company(db)
         if args.json:
             print(json.dumps(db.export_snapshot(), indent=2))
         else:
