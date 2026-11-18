@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import asdict, dataclass
+from datetime import date
 from pathlib import Path
 from typing import Any, Self
 
@@ -63,6 +64,15 @@ class CompanyDatabaseManager:
             raise ValueError(f"{field_name} must not be blank.")
         return cleaned
 
+    @staticmethod
+    def _validate_iso_date(value: str, field_name: str) -> str:
+        cleaned = value.strip()
+        try:
+            date.fromisoformat(cleaned)
+        except ValueError as exc:
+            raise ValueError(f"{field_name} must be a valid YYYY-MM-DD date.") from exc
+        return cleaned
+
     def _record_audit(
         self, action: str, entity_type: str, entity_ref: str, detail: str
     ) -> None:
@@ -107,6 +117,7 @@ class CompanyDatabaseManager:
         clean_name = self._require_non_blank(full_name, "Full name")
         clean_email = self._require_non_blank(email, "Email").lower()
         clean_role = self._require_non_blank(role_title, "Role title")
+        clean_date = self._validate_iso_date(hired_date, "Hired date")
         with self.conn:
             cursor = self.conn.execute(
                 """
@@ -123,7 +134,7 @@ class CompanyDatabaseManager:
                     clean_role,
                     department_id,
                     salary_gbp,
-                    hired_date,
+                    clean_date,
                 ),
             )
             self._record_audit(
@@ -141,8 +152,9 @@ class CompanyDatabaseManager:
         new_role_title: str | None = None,
         new_salary_gbp: int | None = None,
     ) -> None:
-        # Move an employee to another department and optionally update their role/salary
-        clean_code = emp_code.strip().upper()
+        clean_code = self._require_non_blank(emp_code, "Employee code").upper()
+        if new_salary_gbp is not None and new_salary_gbp <= 0:
+            raise ValueError("new_salary_gbp must be positive.")
         with self.conn:
             row = self.conn.execute(
                 "SELECT id, role_title, salary_gbp FROM employees WHERE emp_code = ?",
@@ -151,7 +163,11 @@ class CompanyDatabaseManager:
             if row is None:
                 raise ValueError(f"Employee '{clean_code}' not found.")
 
-            updated_role = new_role_title.strip() if new_role_title else row["role_title"]
+            updated_role = (
+                self._require_non_blank(new_role_title, "New role title")
+                if new_role_title is not None
+                else row["role_title"]
+            )
             updated_salary = new_salary_gbp if new_salary_gbp is not None else row["salary_gbp"]
 
             self.conn.execute(
@@ -167,6 +183,28 @@ class CompanyDatabaseManager:
                 "employee",
                 clean_code,
                 f"Transferred to department_id={new_department_id} as '{updated_role}'",
+            )
+
+    def deactivate_employee(self, emp_code: str) -> None:
+        clean_code = self._require_non_blank(emp_code, "Employee code").upper()
+        with self.conn:
+            row = self.conn.execute(
+                "SELECT is_active FROM employees WHERE emp_code = ?",
+                (clean_code,),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"Employee '{clean_code}' not found.")
+            if int(row["is_active"]) == 0:
+                raise ValueError(f"Employee '{clean_code}' is already inactive.")
+            self.conn.execute(
+                "UPDATE employees SET is_active = 0 WHERE emp_code = ?",
+                (clean_code,),
+            )
+            self._record_audit(
+                "DEACTIVATE_EMPLOYEE",
+                "employee",
+                clean_code,
+                "Marked employee record inactive",
             )
 
     def register_service(
@@ -220,6 +258,10 @@ class CompanyDatabaseManager:
     ) -> int:
         clean_summary = self._require_non_blank(summary, "Incident summary")
         clean_logged_at = self._require_non_blank(logged_at, "Timestamp")
+        if duration_minutes < 0:
+            raise ValueError("duration_minutes cannot be negative.")
+        if not resolved and duration_minutes > 0:
+            raise ValueError("Unresolved incidents must start with duration_minutes=0.")
         with self.conn:
             cursor = self.conn.execute(
                 """

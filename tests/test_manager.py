@@ -148,3 +148,28 @@ def test_export_snapshot_counts_more_than_100_audit_entries_and_rejects_blank_in
 
         snapshot = db.export_snapshot()
         assert snapshot["audit_count"] == 116
+
+
+def test_validation_guards_and_employee_deactivation() -> None:
+    with CompanyDatabaseManager(":memory:") as db:
+        seed_sample_company(db)
+
+        dept_id = int(db.conn.execute("SELECT id FROM departments WHERE code = 'PLAT'").fetchone()["id"])
+
+        with pytest.raises(ValueError, match="valid YYYY-MM-DD"):
+            db.hire_employee("EMP-500", "Bad Date", "b@example.co.uk", "Dev", dept_id, 50_000, hired_date="15/01/2026")
+
+        with pytest.raises(ValueError, match="New role title"):
+            db.transfer_employee("EMP-102", new_department_id=dept_id, new_role_title="   ")
+
+        with pytest.raises(ValueError, match="Unresolved incidents"):
+            db.log_incident(1, 1, "SEV-2", "Still open", resolved=False, duration_minutes=20)
+
+        # Deactivating EMP-101 removes GBP 82,000 from PLAT active payroll
+        db.deactivate_employee("EMP-101")
+        plat_after = {r.code: r for r in db.get_department_budget_summary()}["PLAT"]
+        assert plat_after.active_headcount == 1
+        assert plat_after.annual_payroll_gbp == 68_000
+
+        with pytest.raises(ValueError, match="already inactive"):
+            db.deactivate_employee("EMP-101")

@@ -1,31 +1,29 @@
 # engineering-ops-db
 
-Relational operational ledger and budget reporting tool built with **Python 3.12** and **SQLite 3** (`sqlite3`). It models an engineering organisation's departments, staff, cloud services, operational incidents, and transactional audit logs using a third-normal-form (3NF) schema.
+Relational database manager and command-line reporting utility built with **Python 3.12** and **SQLite 3**. Models departments, staff payroll, cloud service bills, incidents, and transactional audit logs using a third-normal-form (3NF) schema.
 
-## Schema & Design
+## Design Highlights
 
-- **Database constraints**: Enforces foreign keys (`PRAGMA foreign_keys = ON`), `CHECK` constraints for non-negative budgets/salaries and resolution durations, and indexed lookup columns (`emp_code`, `service_code`, `audit_log` timestamps).
-- **Pre-aggregated CTE reporting**: `get_department_budget_summary()` aggregates employee payroll and annualised cloud infrastructure spend in separate Common Table Expressions before joining against `departments`, avoiding row multiplication in financial totals.
-- **Transactional audit logging**: Schema mutations write an audit row inside the same SQLite transaction as the state change.
-- **Idempotent CLI persistence**: Running against a file-backed database initialises the schema and only seeds sample records when the `departments` table is empty.
+- **Accurate multi-table summaries**: Joining `departments` directly to both `employees` and `cloud_services` causes row multiplication whenever a team runs multiple services. `get_department_budget_summary()` sums payroll (`emp_totals`) and annualised cloud costs (`svc_totals`) in separate Common Table Expressions before joining back to `departments`.
+- **Database & domain checks**: Enables `PRAGMA foreign_keys = ON`, validates dates (`YYYY-MM-DD`), emails, non-blank fields, and positive budgets/salaries, and prevents unresolved incidents from carrying a recovery duration.
+- **Transactional audit trail**: Staff hires, transfers, deactivations, service registrations, and incident updates write to `audit_log` inside the same transaction as the state change.
+- **Reliable resolution averages**: `get_service_reliability_summary()` calculates `AVG(CASE WHEN i.resolved = 1 THEN i.duration_minutes END)` so open incidents (`0` minutes) never deflate MTTR.
 
-## Project Layout
+## Project Structure
 
 ```text
 engineering-ops-db/
 ├── src/company_db/
-│   ├── schema.sql      # 3NF DDL with foreign keys, CHECK constraints, and indexes
-│   ├── manager.py      # CompanyDatabaseManager repository, CTE queries, seed data
-│   └── cli.py          # Command-line runner supporting --db and --json output
+│   ├── schema.sql      # 3NF schema with foreign keys, CHECK constraints, and indexes
+│   ├── manager.py      # CompanyDatabaseManager, CTE queries, validation, sample seeder
+│   └── cli.py          # Terminal table and JSON reporter (--db, --json)
 ├── tests/
-│   └── test_manager.py # Constraint, aggregation, snapshot, and CLI tests
+│   └── test_manager.py
 ├── pyproject.toml
 └── requirements.txt
 ```
 
 ## Quick Start
-
-Run tests and linting from the repository root:
 
 ```bash
 pip install -e ".[dev]"
@@ -33,7 +31,7 @@ ruff check .
 pytest -v
 ```
 
-Run the interactive CLI report (in-memory sample dataset, text or JSON):
+Run the CLI report against an in-memory sample dataset or a persistent SQLite file:
 
 ```bash
 PYTHONPATH=src python -m company_db.cli
