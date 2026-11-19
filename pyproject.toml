@@ -4,11 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "company-db-manager"
-version = "1.0.0"
+version = "1.2.0"
 description = "Relational database management tool in Python 3.12 and SQLite for tech company departments, engineers, cloud services, and incident tracking"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
+
+[project.scripts]
+engineering-ops-db = "company_db.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -16,8 +19,11 @@ dev = [
     "ruff>=0.4.0",
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
-pythonpath = [".", "src"]
+pythonpath = ["src"]
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 

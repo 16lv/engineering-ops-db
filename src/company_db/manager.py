@@ -33,8 +33,6 @@ class ServiceReliabilityReport:
 
 
 class CompanyDatabaseManager:
-    # Wrapper around sqlite3 for managing departments, staff, cloud services, and incidents.
-
     def __init__(self, db_path: str | Path = ":memory:") -> None:
         self.db_path = str(db_path)
         self.conn = sqlite3.connect(self.db_path)
@@ -291,7 +289,6 @@ class CompanyDatabaseManager:
             return incident_id
 
     def resolve_incident(self, incident_id: int, duration_minutes: int) -> None:
-        # Mark an open incident as resolved and record its recovery time in the audit trail
         if duration_minutes < 0:
             raise ValueError("duration_minutes cannot be negative.")
         with self.conn:
@@ -469,7 +466,6 @@ class CompanyDatabaseManager:
 
 
 def seed_sample_company(db: CompanyDatabaseManager) -> None:
-    # Sample dataset used by the CLI and tests
     db.init_schema()
 
     plat_id = db.create_department("PLAT", "Platform Engineering", 420_000)
