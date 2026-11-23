@@ -57,6 +57,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Emit structured JSON report instead of formatted tables",
     )
+    parser.add_argument(
+        "--dept",
+        default=None,
+        help="Filter report output to a single department code (e.g. PLAT)",
+    )
+    parser.add_argument(
+        "--audit-limit",
+        type=int,
+        default=0,
+        help="Optional number of recent audit log entries to print",
+    )
     args = parser.parse_args(argv)
 
     with CompanyDatabaseManager(args.db) as db:
@@ -64,10 +75,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         dept_count_row = db.conn.execute("SELECT COUNT(*) AS cnt FROM departments").fetchone()
         if dept_count_row is None or int(dept_count_row["cnt"]) == 0:
             seed_sample_company(db)
+        dept_filter = args.dept.strip().upper() if args.dept else None
         if args.json:
-            print(json.dumps(db.export_snapshot(), indent=2))
+            snapshot = db.export_snapshot()
+            if dept_filter:
+                snapshot["departments"] = [
+                    d for d in snapshot["departments"] if d["code"] == dept_filter
+                ]
+                snapshot["services"] = [
+                    s for s in snapshot["services"] if s["department_code"] == dept_filter
+                ]
+            if args.audit_limit > 0:
+                snapshot["recent_audit_logs"] = db.get_recent_audit_logs(limit=args.audit_limit)
+            print(json.dumps(snapshot, indent=2))
         else:
             print(format_report_text(db))
+            if args.audit_limit > 0:
+                print("\n=== RECENT AUDIT LOG ===")
+                for entry in db.get_recent_audit_logs(limit=args.audit_limit):
+                    print(f"  [{entry['action']}] {entry['entity_ref']}: {entry['detail']}")
 
     return 0
 

@@ -11,7 +11,7 @@ Relational database toolkit built with **Python 3.12** and **SQLite** for tracki
 - **Fan-out-safe financial rollups**: `get_department_budget_summary()` aggregates employee salaries and annualised cloud service costs inside separate CTEs before joining, preventing row-multiplication double counting.
 - **Honest reliability averages**: `get_service_reliability_summary()` computes mean time to resolution only across resolved incidents (`resolved = 1`).
 - **Validated writes & lifecycle controls**: Includes `transfer_employee()`, `deactivate_employee()`, `resolve_incident()`, ISO date checks (`YYYY-MM-DD`), and audit logging on every state transition.
-- **CLI & JSON export**: Run terminal tables or JSON snapshots via `engineering-ops-db`.
+- **CLI & JSON export**: Run terminal tables or JSON snapshots via `engineering-ops-db`, with `--dept` filtering and configurable `--audit-limit` history output.
 
 ## Technology Stack
 
@@ -33,10 +33,10 @@ Print formatted budget and reliability tables:
 engineering-ops-db
 ```
 
-Write to a persistent database file and inspect JSON output:
+Write to a persistent database file and inspect filtered JSON output:
 
 ```bash
-engineering-ops-db --db company_ops.db --json
+engineering-ops-db --db company_ops.db --dept ENG --audit-limit 10 --json
 ```
 
 ## Technical Implementation Details

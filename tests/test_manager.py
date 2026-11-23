@@ -173,3 +173,12 @@ def test_validation_guards_and_employee_deactivation() -> None:
 
         with pytest.raises(ValueError, match="already inactive"):
             db.deactivate_employee("EMP-101")
+
+
+def test_cli_department_filter_and_audit_log_output(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["--json", "--dept", "PLAT", "--audit-limit", "3"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [d["code"] for d in payload["departments"]] == ["PLAT"]
+    assert len(payload["recent_audit_logs"]) == 3
