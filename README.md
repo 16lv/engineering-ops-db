@@ -36,7 +36,7 @@ engineering-ops-db
 Write to a persistent database file and inspect filtered JSON output:
 
 ```bash
-engineering-ops-db --db company_ops.db --dept ENG --audit-limit 10 --json
+engineering-ops-db --db company_ops.db --dept ENG --role Platform --audit-limit 10 --json
 ```
 
 ## Technical Implementation Details

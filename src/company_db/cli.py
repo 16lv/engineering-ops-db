@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
+import sys
 from collections.abc import Sequence
 
 from company_db.manager import CompanyDatabaseManager, seed_sample_company
@@ -68,34 +70,56 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=0,
         help="Optional number of recent audit log entries to print",
     )
+    parser.add_argument(
+        "--role",
+        default=None,
+        help="Optional role keyword to filter active employees",
+    )
     args = parser.parse_args(argv)
 
-    with CompanyDatabaseManager(args.db) as db:
-        db.init_schema()
-        dept_count_row = db.conn.execute("SELECT COUNT(*) AS cnt FROM departments").fetchone()
-        if dept_count_row is None or int(dept_count_row["cnt"]) == 0:
-            seed_sample_company(db)
-        dept_filter = args.dept.strip().upper() if args.dept else None
-        if args.json:
-            snapshot = db.export_snapshot()
-            if dept_filter:
-                snapshot["departments"] = [
-                    d for d in snapshot["departments"] if d["code"] == dept_filter
-                ]
-                snapshot["services"] = [
-                    s for s in snapshot["services"] if s["department_code"] == dept_filter
-                ]
-            if args.audit_limit > 0:
-                snapshot["recent_audit_logs"] = db.get_recent_audit_logs(limit=args.audit_limit)
-            print(json.dumps(snapshot, indent=2))
-        else:
-            print(format_report_text(db))
-            if args.audit_limit > 0:
-                print("\n=== RECENT AUDIT LOG ===")
-                for entry in db.get_recent_audit_logs(limit=args.audit_limit):
-                    print(f"  [{entry['action']}] {entry['entity_ref']}: {entry['detail']}")
+    try:
+        if args.audit_limit < 0:
+            raise ValueError("--audit-limit must be non-negative.")
 
-    return 0
+        with CompanyDatabaseManager(args.db) as db:
+            db.init_schema()
+            dept_count_row = db.conn.execute("SELECT COUNT(*) AS cnt FROM departments").fetchone()
+            if dept_count_row is None or int(dept_count_row["cnt"]) == 0:
+                seed_sample_company(db)
+            dept_filter = args.dept.strip().upper() if args.dept else None
+            employees = (
+                db.search_employees(department_code=dept_filter, role_keyword=args.role)
+                if args.role
+                else None
+            )
+            if args.json:
+                snapshot = db.export_snapshot()
+                if dept_filter:
+                    snapshot["departments"] = [
+                        d for d in snapshot["departments"] if d["code"] == dept_filter
+                    ]
+                    snapshot["services"] = [
+                        s for s in snapshot["services"] if s["department_code"] == dept_filter
+                    ]
+                if employees is not None:
+                    snapshot["matching_employees"] = employees
+                if args.audit_limit > 0:
+                    snapshot["recent_audit_logs"] = db.get_recent_audit_logs(limit=args.audit_limit)
+                print(json.dumps(snapshot, indent=2))
+            else:
+                print(format_report_text(db))
+                if employees is not None:
+                    print("\n=== MATCHING ACTIVE EMPLOYEES ===")
+                    for emp in employees:
+                        print(f"  {emp['emp_code']} | {emp['full_name']} | {emp['role_title']} ({emp['department_code']})")
+                if args.audit_limit > 0:
+                    print("\n=== RECENT AUDIT LOG ===")
+                    for entry in db.get_recent_audit_logs(limit=args.audit_limit):
+                        print(f"  [{entry['action']}] {entry['entity_ref']}: {entry['detail']}")
+        return 0
+    except (ValueError, sqlite3.Error, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

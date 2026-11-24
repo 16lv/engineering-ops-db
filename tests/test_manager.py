@@ -182,3 +182,14 @@ def test_cli_department_filter_and_audit_log_output(
     payload = json.loads(capsys.readouterr().out)
     assert [d["code"] for d in payload["departments"]] == ["PLAT"]
     assert len(payload["recent_audit_logs"]) == 3
+
+
+def test_cli_role_filter_and_negative_audit_limit_exit_code(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["--json", "--role", "Platform"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [e["emp_code"] for e in payload["matching_employees"]] == ["EMP-101"]
+
+    assert main(["--audit-limit", "-1"]) == 2
+    assert "error:" in capsys.readouterr().err
